@@ -1,0 +1,47 @@
+node 
+{
+    properties([[$class: 'JiraProjectProperty'], buildDiscarder(logRotator(artifactDaysToKeepStr: '', artifactNumToKeepStr: '5', daysToKeepStr: '', numToKeepStr: '5')), pipelineTriggers([pollSCM('* * * * *')])])
+    
+    echo "Build Number is : ${env.BUILD_NUMBER}"
+    
+    def mavenHome = tool name: "maven3.6.3"
+    
+    stage('Checkout Code')
+    {
+        git branch: 'development', credentialsId: 'c9e9b6b0-aaae-4242-934d-084b74a5cb25', url: 'https://github.com/rv-ecommerce-app/maven-web-application.git'
+    }
+    
+    stage('Build')
+    {
+        sh "${mavenHome}/bin/mvn clean package"
+    }
+    
+    stage('Execute Sonarqube Report')
+    {
+        sh "${mavenHome}/bin/mvn sonar:sonar"
+    }
+    
+    stage('upload artifact into Nexus')
+    {
+        sh "${mavenHome}/bin/mvn sonar:sonar deploy"
+    }
+    
+    stage('Deploying to Tomcat server')
+    {
+        sshagent(['c38cca85-27f8-4377-abc7-228db3bf5c76'])
+        {
+            sh "scp -o StrictHostKeyChecking=no target/maven-web-application.war ec2-user@13.127.19.211:/opt/apache-tomcat-9.0.38/webapps/"
+        }
+
+
+    }
+    
+    stage('sending email notification')
+    {
+         mail bcc: '', body: '''Build is over .. 
+
+Regards 
+Raghu Technologies
+9071346752''', cc: 'raghuveerat9620@gmail.com', from: '', replyTo: '', subject: 'Build is over .. ', to: 'raghuveert63@gmail.com'
+    }
+}
